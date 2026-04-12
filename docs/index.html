@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>古诗词生成助手 | Poetry-Assistant</title>
+  <style>
+    /* ===== 字体 ===== */
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;600;700&family=ZCOOL+XiaoWei&display=swap');
+
+    /* ===== 全局重置 ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    /* ===== 背景：水墨山水 ===== */
+    body {
+      background: #0a0d14;
+      color: #e8dfc8;
+      font-family: 'Noto Serif SC', serif;
+      overflow-x: hidden;
+    }
+
+    /* ===== 动态墨迹背景 ===== */
+    .ink-bg {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+    }
+    .ink-bg::before {
+      content: '';
+      position: absolute; width: 600px; height: 600px;
+      background: radial-gradient(ellipse, rgba(30,50,80,0.35) 0%, transparent 70%);
+      top: -100px; left: -200px;
+      animation: float1 18s ease-in-out infinite;
+    }
+    .ink-bg::after {
+      content: '';
+      position: absolute; width: 800px; height: 800px;
+      background: radial-gradient(ellipse, rgba(20,35,60,0.25) 0%, transparent 65%);
+      bottom: -200px; right: -200px;
+      animation: float2 22s ease-in-out infinite;
+    }
+    @keyframes float1 {
+      0%,100% { transform: translate(0,0) scale(1); }
+      33%      { transform: translate(60px,80px) scale(1.1); }
+      66%      { transform: translate(-40px,40px) scale(0.95); }
+    }
+    @keyframes float2 {
+      0%,100% { transform: translate(0,0) scale(1); }
+      40%     { transform: translate(-80px,-60px) scale(1.15); }
+      70%     { transform: translate(40px,-100px) scale(0.9); }
+    }
+
+    /* ===== 漂浮墨点 ===== */
+    .ink-particle {
+      position: fixed; border-radius: 50%;
+      background: rgba(200,180,120,0.06);
+      animation: particle-float linear infinite;
+      z-index: 0; pointer-events: none;
+    }
+    @keyframes particle-float {
+      0%   { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { transform: translateY(-10vh) rotate(360deg); opacity: 0; }
+    }
+
+    /* ===== 导航栏 ===== */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      padding: 18px 48px;
+      display: flex; justify-content: space-between; align-items: center;
+      background: rgba(10,13,20,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(200,180,100,0.12);
+    }
+    nav .logo {
+      font-family: 'ZCOOL XiaoWei', serif;
+      font-size: 1.5rem; color: #c9a84c;
+      letter-spacing: 3px;
+      text-decoration: none;
+    }
+    nav .logo span { color: #e8dfc8; }
+    nav ul {
+      list-style: none; display: flex; gap: 32px;
+    }
+    nav ul a {
+      color: #a09070; text-decoration: none; font-size: 0.9rem;
+      letter-spacing: 1px; transition: color 0.3s;
+    }
+    nav ul a:hover { color: #c9a84c; }
+
+    /* ===== 内容层 ===== */
+    .content { position: relative; z-index: 1; }
+
+    /* ===== Hero 区域 ===== */
+    .hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      text-align: center; padding: 120px 24px 80px;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(201,168,76,0.1);
+      border: 1px solid rgba(201,168,76,0.3);
+      border-radius: 100px; padding: 6px 20px;
+      font-size: 0.78rem; color: #c9a84c;
+      letter-spacing: 2px; margin-bottom: 32px;
+      animation: fadeDown 0.8s ease both;
+    }
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .hero-title {
+      font-family: 'ZCOOL XiaoWei', serif;
+      font-size: clamp(3rem, 8vw, 6rem);
+      color: #f5f0e0; line-height: 1.1;
+      letter-spacing: 8px; margin-bottom: 12px;
+      animation: fadeUp 0.8s 0.2s ease both;
+    }
+    .hero-title .gold { color: #c9a84c; }
+    .hero-subtitle {
+      font-size: clamp(1rem, 2.5vw, 1.3rem);
+      color: #8a7a60; letter-spacing: 4px;
+      margin-bottom: 16px; animation: fadeUp 0.8s 0.4s ease both;
+    }
+    .hero-poem {
+      font-size: clamp(0.85rem, 1.8vw, 1.05rem);
+      color: #6a5a40; font-style: italic;
+      letter-spacing: 2px; margin-bottom: 48px;
+      animation: fadeUp 0.8s 0.5s ease both;
+    }
+    .hero-actions {
+      display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;
+      animation: fadeUp 0.8s 0.6s ease both;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ===== 按钮 ===== */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 32px; border-radius: 4px;
+      font-size: 0.95rem; letter-spacing: 2px;
+      text-decoration: none; transition: all 0.3s;
+      cursor: pointer; border: none;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #c9a84c, #a07c28);
+      color: #0a0d14; font-weight: 600;
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #d4b85c, #b08c38);
+      transform: translateY(-2px); box-shadow: 0 8px 24px rgba(201,168,76,0.3);
+    }
+    .btn-outline {
+      background: transparent; color: #c9a84c;
+      border: 1px solid rgba(201,168,76,0.5);
+    }
+    .btn-outline:hover {
+      border-color: #c9a84c;
+      background: rgba(201,168,76,0.08);
+      transform: translateY(-2px);
+    }
+
+    /* ===== 装饰分割线 ===== */
+    .divider {
+      display: flex; align-items: center; justify-content: center;
+      gap: 16px; margin: 80px auto; width: 480px; max-width: 90%;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px;
+      background: linear-gradient(to right, transparent, rgba(201,168,76,0.4), transparent);
+    }
+    .divider-icon { color: #c9a84c; font-size: 1.2rem; }
+
+    /* ===== 技术徽章 ===== */
+    .tech-stack {
+      display: flex; flex-wrap: wrap; justify-content: center;
+      gap: 12px; margin: 60px auto; max-width: 700px;
+    }
+    .tech-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px; padding: 8px 16px;
+      font-size: 0.82rem; color: #8a7a60;
+      letter-spacing: 1px;
+      transition: all 0.3s;
+    }
+    .tech-badge:hover {
+      border-color: rgba(201,168,76,0.4);
+      background: rgba(201,168,76,0.06);
+      color: #c9a84c;
+    }
+
+    /* ===== 样例展示区 ===== */
+    .samples-section { padding: 80px 24px; }
+    .section-label {
+      text-align: center; font-size: 0.75rem;
+      color: #c9a84c; letter-spacing: 4px;
+      text-transform: uppercase; margin-bottom: 12px;
+    }
+    .section-title {
+      text-align: center;
+      font-family: 'ZCOOL XiaoWei', serif;
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      color: #f0e8d0; letter-spacing: 6px; margin-bottom: 16px;
+    }
+    .section-desc {
+      text-align: center; color: #6a5a40;
+      font-size: 0.95rem; letter-spacing: 1px;
+      max-width: 560px; margin: 0 auto 60px;
+    }
+
+    /* 诗词卡片网格 */
+    .poetry-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px; max-width: 1100px; margin: 0 auto;
+    }
+    .poetry-card {
+      background: linear-gradient(145deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+      border: 1px solid rgba(201,168,76,0.15);
+      border-radius: 8px; padding: 32px 28px;
+      position: relative; overflow: hidden;
+      transition: all 0.4s;
+      opacity: 0; transform: translateY(20px);
+    }
+    .poetry-card.visible {
+      opacity: 1; transform: translateY(0);
+    }
+    .poetry-card:hover {
+      border-color: rgba(201,168,76,0.4);
+      background: linear-gradient(145deg, rgba(201,168,76,0.06), rgba(255,255,255,0.02));
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    }
+    .poetry-card::before {
+      content: ''; position: absolute; top: 0; left: 0;
+      width: 3px; height: 0;
+      background: linear-gradient(to bottom, #c9a84c, transparent);
+      transition: height 0.4s;
+    }
+    .poetry-card:hover::before { height: 100%; }
+
+    /* 卡片标签 */
+    .card-tag {
+      display: inline-block;
+      font-size: 0.7rem; letter-spacing: 2px;
+      padding: 3px 10px; border-radius: 3px;
+      margin-bottom: 16px;
+    }
+    .tag-spring  { background: rgba(80,160,80,0.15); color: #7ab87a; border: 1px solid rgba(80,160,80,0.3); }
+    .tag-moon    { background: rgba(80,120,180,0.15); color: #80a8d0; border: 1px solid rgba(80,120,180,0.3); }
+    .tag-war     { background: rgba(180,60,60,0.15); color: #d08080; border: 1px solid rgba(180,60,60,0.3); }
+    .tag-autumn  { background: rgba(180,140,40,0.15); color: #c8a040; border: 1px solid rgba(180,140,40,0.3); }
+    .tag-rain    { background: rgba(60,100,160,0.15); color: #80a0d0; border: 1px solid rgba(60,100,160,0.3); }
+    .tag-pine    { background: rgba(40,120,80,0.15); color: #60b880; border: 1px solid rgba(40,120,80,0.3); }
+
+    .card-prompt {
+      font-size: 0.82rem; color: #7a6a50;
+      margin-bottom: 20px; letter-spacing: 0.5px;
+      font-style: italic;
+    }
+    .card-prompt::before { content: '「'; color: #c9a84c; }
+    .card-prompt::after  { content: '」'; color: #c9a84c; }
+
+    .card-poem {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 1.1rem; line-height: 2.2;
+      color: #ddd0b0; letter-spacing: 2px;
+      white-space: pre-line;
+    }
+
+    /* ===== 功能特性 ===== */
+    .features-section { padding: 80px 24px; }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px; max-width: 1000px; margin: 0 auto;
+    }
+    .feature-card {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 8px; padding: 28px 24px;
+      text-align: center; transition: all 0.3s;
+    }
+    .feature-card:hover {
+      border-color: rgba(201,168,76,0.3);
+      background: rgba(201,168,76,0.04);
+    }
+    .feature-icon { font-size: 2.2rem; margin-bottom: 16px; }
+    .feature-title {
+      font-size: 1rem; color: #e8dfc8;
+      letter-spacing: 3px; margin-bottom: 10px;
+      font-weight: 600;
+    }
+    .feature-desc {
+      font-size: 0.85rem; color: #6a5a40;
+      line-height: 1.7; letter-spacing: 0.5px;
+    }
+
+    /* ===== 架构图 ===== */
+    .architecture-section { padding: 80px 24px; }
+    .arch-diagram {
+      max-width: 800px; margin: 0 auto;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(201,168,76,0.15);
+      border-radius: 12px; padding: 40px;
+    }
+    .arch-layer {
+      display: flex; align-items: center;
+      gap: 16px; margin-bottom: 20px;
+      padding: 16px 20px;
+      border-radius: 6px; position: relative;
+    }
+    .arch-layer:last-child { margin-bottom: 0; }
+    .arch-label {
+      min-width: 90px; font-size: 0.75rem;
+      letter-spacing: 2px; text-align: center;
+      padding: 4px 10px; border-radius: 4px;
+    }
+    .arch-items { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; }
+    .arch-chip {
+      padding: 6px 14px; border-radius: 4px;
+      font-size: 0.82rem; letter-spacing: 1px;
+      border: 1px solid;
+    }
+    .layer-brain  { background: rgba(100,80,180,0.15); border-color: rgba(100,80,180,0.3); color: #a090e0; }
+    .layer-brain .arch-label { background: rgba(100,80,180,0.2); color: #a090e0; }
+    .layer-tool   { background: rgba(60,130,100,0.15); border-color: rgba(60,130,100,0.3); color: #70c0a0; }
+    .layer-tool   .arch-label { background: rgba(60,130,100,0.2); color: #70c0a0; }
+    .layer-data   { background: rgba(180,100,60,0.15); border-color: rgba(180,100,60,0.3); color: #d0a080; }
+    .layer-data   .arch-label { background: rgba(180,100,60,0.2); color: #d0a080; }
+    .layer-deploy { background: rgba(201,168,76,0.1); border-color: rgba(201,168,76,0.3); color: #c9a84c; }
+    .layer-deploy .arch-label { background: rgba(201,168,76,0.15); color: #c9a84c; }
+
+    /* ===== 页脚 ===== */
+    footer {
+      border-top: 1px solid rgba(201,168,76,0.1);
+      padding: 40px 24px; text-align: center;
+      color: #5a4a30; font-size: 0.82rem;
+      letter-spacing: 1px;
+    }
+    footer a { color: #8a7040; text-decoration: none; }
+    footer a:hover { color: #c9a84c; }
+
+    /* ===== 滚动动画 ===== */
+    .reveal { opacity: 0; transform: translateY(30px); transition: all 0.8s ease; }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+
+    /* ===== 响应式 ===== */
+    @media (max-width: 640px) {
+      nav { padding: 14px 20px; }
+      nav ul { gap: 16px; }
+      nav ul a { font-size: 0.8rem; }
+      .hero { padding: 100px 16px 60px; }
+      .arch-diagram { padding: 20px; }
+      .arch-layer { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- 水墨背景 -->
+<div class="ink-bg"></div>
+
+<!-- 漂浮墨点 -->
+<div id="particles"></div>
+
+<!-- 导航栏 -->
+<nav>
+  <a href="#" class="logo">古诗词<span>·</span>助手</a>
+  <ul>
+    <li><a href="#samples">生成样例</a></li>
+    <li><a href="#features">功能特性</a></li>
+    <li><a href="#architecture">技术架构</a></li>
+    <li><a href="https://github.com/sakitimr/Poetry-Assistant" target="_blank">GitHub</a></li>
+  </ul>
+</nav>
+
+<!-- 主内容 -->
+<div class="content">
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-badge">
+      <span>✦</span> AI-Powered · Open Source
+    </div>
+    <h1 class="hero-title">
+      古诗词<span class="gold">生成</span>助手
+    </h1>
+    <p class="hero-subtitle">POETRY ASSISTANT</p>
+    <p class="hero-poem">
+      大漠沙如雪，燕山月似钩。<br>
+      何当金络脑，快走踏清秋。
+    </p>
+    <div class="hero-actions">
+      <a href="https://github.com/sakitimr/Poetry-Assistant" class="btn btn-primary" target="_blank">
+        ★ Star on GitHub
+      </a>
+      <a href="#samples" class="btn btn-outline">欣赏生成样例 →</a>
+    </div>
+
+    <!-- 技术栈徽章 -->
+    <div class="tech-stack">
+      <div class="tech-badge">🧠 DeepSeek-R1</div>
+      <div class="tech-badge">🔧 MindSpore 2.0</div>
+      <div class="tech-badge">🎯 LoRA 微调</div>
+      <div class="tech-badge">📚 全唐诗/宋词</div>
+      <div class="tech-badge">⚡ Qwen-1.5B</div>
+    </div>
+  </section>
+
+  <!-- 分割线 -->
+  <div class="divider">
+    <span class="divider-icon">☯</span>
+  </div>
+
+  <!-- 诗词生成样例 -->
+  <section class="samples-section" id="samples">
+    <div class="section-label">— Generated Samples —</div>
+    <h2 class="section-title">妙笔生花</h2>
+    <p class="section-desc">
+      基于深度学习模型，理解古典诗词的意境与格律，<br>
+      根据主题、意象自动创作符合平仄规则的原创作品。
+    </p>
+
+    <div class="poetry-grid">
+
+      <!-- 卡片 1：春天 -->
+      <div class="poetry-card">
+        <span class="card-tag tag-spring">🌱 春天</span>
+        <p class="card-prompt">写一首关于春天的七言绝句</p>
+        <div class="card-poem">春光何处不芳菲，
+柳絮飞时燕子归。
+花落水流人未老，
+东风吹梦入罗帏。</div>
+      </div>
+
+      <!-- 卡片 2：月亮 -->
+      <div class="poetry-card">
+        <span class="card-tag tag-moon">🌙 思乡</span>
+        <p class="card-prompt">以月亮为意象，表达思乡之情</p>
+        <div class="card-poem">一轮明月照高楼，
+独倚栏杆总是愁。
+游子天涯归未得，
+故乡回首路悠悠。</div>
+      </div>
+
+      <!-- 卡片 3：战争 -->
+      <div class="poetry-card">
+        <span class="card-tag tag-war">⚔ 边塞</span>
+        <p class="card-prompt">描写边塞征战，气势磅礴</p>
+        <div class="card-poem">黄沙万里裹征袍，
+剑影刀光动白旄。
+誓扫匈奴不顾身，
+长城饮马卧霜毛。</div>
+      </div>
+
+      <!-- 卡片 4：秋 -->
+      <div class="poetry-card">
+        <span class="card-tag tag-autumn">🍂 秋思</span>
+        <p class="card-prompt">秋日黄昏，羁旅之愁</p>
+        <div class="card-poem">西风萧瑟送残晖，
+木落山空雁影微。
+万里行人俱是客，
+一声蝉噪送秋归。</div>
+      </div>
+
+      <!-- 卡片 5：雨 -->
+      <div class="poetry-card">
+        <span class="card-tag tag-rain">🌧 春雨</span>
+        <p class="card-prompt">春夜细雨，静谧悠远</p>
+        <div class="card-poem">细雨潇潇夜未收，
+孤灯残梦入罗浮。
+阶前点滴芭蕉响，
+都在诗人两句愁。</div>
+      </div>
+
+      <!-- 卡片 6：松 -->
+      <div class="poetry-card">
+        <span class="card-tag tag-pine">🌲 咏物</span>
+        <p class="card-prompt">咏青松，坚韧不拔之志</p>
+        <div class="card-poem">青松郁郁立崖巅，
+雪压霜欺不改颜。
+若待春风来拂拭，
+依然苍翠满人间。</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- 功能特性 -->
+  <section class="features-section" id="features">
+    <div class="section-label">— Core Features —</div>
+    <h2 class="section-title">功能特性</h2>
+    <p class="section-desc">强大的 AI 诗词创作能力，开箱即用</p>
+
+    <div class="features-grid">
+      <div class="feature-card reveal">
+        <div class="feature-icon">✍️</div>
+        <div class="feature-title">多体裁生成</div>
+        <div class="feature-desc">支持五言/七言绝句、律诗、宋词、元曲等多种古典诗体自动创作</div>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon">🎨</div>
+        <div class="feature-title">风格迁移</div>
+        <div class="feature-desc">可学习李白豪放、杜甫沉郁、苏轼旷达等不同诗人的独特风格</div>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon">🔄</div>
+        <div class="feature-title">繁简转换</div>
+        <div class="feature-desc">内置 OpenCC 繁简转换引擎，支持繁体与简体中文一键互转</div>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon">📊</div>
+        <div class="feature-title">数据分析</div>
+        <div class="feature-desc">古诗词词频统计、高频意象提取、词云可视化等辅助功能</div>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon">⚡</div>
+        <div class="feature-title">高效推理</div>
+        <div class="feature-desc">LoRA 微调技术，仅训练 0.1% 参数，消费级 GPU 即可运行</div>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon">🔧</div>
+        <div class="feature-title">灵活扩展</div>
+        <div class="feature-desc">Jupyter Notebook 开发环境，支持自定义数据集与模型微调</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 技术架构 -->
+  <section class="architecture-section" id="architecture">
+    <div class="section-label">— Technical Architecture —</div>
+    <h2 class="section-title">技术架构</h2>
+    <p class="section-desc">大语言模型 + LoRA 高效微调，端到端的古诗词生成流水线</p>
+
+    <div class="arch-diagram">
+      <div class="arch-layer layer-brain">
+        <div class="arch-label">🧠 模型层</div>
+        <div class="arch-items">
+          <span class="arch-chip">DeepSeek-R1-Distill-Qwen-1.5B</span>
+          <span class="arch-chip">LoRA (r=8, α=32)</span>
+        </div>
+      </div>
+      <div class="arch-layer layer-tool">
+        <div class="arch-label">🔧 框架层</div>
+        <div class="arch-items">
+          <span class="arch-chip">MindSpore 2.0</span>
+          <span class="arch-chip">Transformers</span>
+          <span class="arch-chip">PEFT</span>
+        </div>
+      </div>
+      <div class="arch-layer layer-data">
+        <div class="arch-label">📊 数据层</div>
+        <div class="arch-items">
+          <span class="arch-chip">全唐诗</span>
+          <span class="arch-chip">全宋词</span>
+          <span class="arch-chip">全元曲</span>
+          <span class="arch-chip">OpenCC</span>
+        </div>
+      </div>
+      <div class="arch-layer layer-deploy">
+        <div class="arch-label">🚀 部署</div>
+        <div class="arch-items">
+          <span class="arch-chip">Jupyter Notebook</span>
+          <span class="arch-chip">Gradio Web UI</span>
+          <span class="arch-chip">HuggingFace</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 分割线 -->
+  <div class="divider">
+    <span class="divider-icon">☯</span>
+  </div>
+
+  <!-- 页脚 -->
+  <footer>
+    <p>
+      <a href="https://github.com/sakitimr/Poetry-Assistant" target="_blank">Poetry-Assistant</a>
+      &nbsp;·&nbsp; 基于 DeepSeek-R1 + MindSpore + LoRA &nbsp;·&nbsp;
+      <a href="https://opensource.org/licenses/MIT" target="_blank">MIT License</a>
+    </p>
+    <p style="margin-top:8px; color:#4a3a20;">
+      Built with ❤️ by <a href="https://github.com/sakitimr" target="_blank">@sakitimr</a>
+    </p>
+  </footer>
+
+</div>
+
+<script>
+  /* ===== 漂浮墨点 ===== */
+  (function () {
+    const container = document.getElementById('particles');
+    for (let i = 0; i < 18; i++) {
+      const p = document.createElement('div');
+      p.className = 'ink-particle';
+      const size = Math.random() * 6 + 2;
+      p.style.cssText = `
+        width:${size}px; height:${size}px;
+        left:${Math.random() * 100}%;
+        animation-duration:${Math.random() * 20 + 15}s;
+        animation-delay:${Math.random() * 20}s;
+      `;
+      container.appendChild(p);
+    }
+  })();
+
+  /* ===== 滚动动画 ===== */
+  (function () {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            e.target.classList.add('visible');
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    document.querySelectorAll('.reveal, .poetry-card').forEach((el) => {
+      observer.observe(el);
+    });
+
+    // 错开卡片动画时间
+    document.querySelectorAll('.poetry-card').forEach((el, i) => {
+      el.style.transitionDelay = (i * 0.12) + 's';
+    });
+  })();
+</script>
+
+</body>
+</html>

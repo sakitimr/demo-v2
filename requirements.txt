@@ -1,0 +1,21 @@
+# ============================================================
+# 古诗词生成助手 - Python 依赖
+# Poetry-Assistant / requirements.txt
+# ============================================================
+
+# 核心深度学习框架
+mindspore>=2.0.0
+
+# Transformers & PEFT
+transformers>=4.30.0
+peft>=0.4.0
+accelerate
+
+# 工具库
+opencc-python-reimplemented  # 繁简转换
+pandas
+jieba                       # 中文分词
+datasets                    # 数据集管理
+
+# Gradio Web UI
+gradio>=4.0.0
